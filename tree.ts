@@ -166,13 +166,14 @@ function generateFullTree(
             const radius = rand.nextFloat(1, 10); 
             
             // Random position near the branch end/middle
-            const t = rand.nextFloat(0.3, 0.6); // Position along branch
+            const t = rand.nextFloat(0.3, 0.95); // Position along branch
             const px = (1-t)*start.x + t*end.x;
             const py = (1-t)*start.y + t*end.y;
             
             // This is the attachment point on the branch
             const attachmentPoint = new Vector2(px, py);
             
+            // Offset from the attachment point. Reduced for tighter clustering.
             const offsetX = rand.nextFloat(-40, 40);
             const offsetY = rand.nextFloat(-40, 40);
 
@@ -195,7 +196,7 @@ function generateFullTree(
                 const color = fruitPalette[rand.nextInt(0, fruitPalette.length)];
                 
                 // Fruits grow LAST: add a large offset to their distFromRoot so they appear at the very end
-                const fruitDelay = 500; // They'll start growing 500 units after their branch
+                const fruitDelay = 100; // They'll start growing 500 units after their branch
                 
                 entities.push({
                     center: new Vector2(eX, eY),
@@ -317,20 +318,12 @@ function flattenTreeOrganic(
                     const radiusScale = smoothStep(growthP);
 
                     if (radiusScale > 0.01) {
-                        // Lerp position from attachment point to final center during growth
-                        const scaledAttachmentX = entity.attachmentPoint?.x ? entity.attachmentPoint.x * scale + offsetX : entity.center.x * scale + offsetX;
-                        const scaledAttachmentY = entity.attachmentPoint?.y ? entity.attachmentPoint.y * scale + offsetY : entity.center.y * scale + offsetY;
                         const finalCenterX = entity.center.x * scale + offsetX;
                         const finalCenterY = entity.center.y * scale + offsetY;
-                        
-                        // During early growth, lerp from attachment point to center
-                        const lerpAmount = Math.min(radiusScale, 0.3) / 0.3; // Complete lerp in first 30% of growth
-                        const curX = scaledAttachmentX + (finalCenterX - scaledAttachmentX) * lerpAmount;
-                        const curY = scaledAttachmentY + (finalCenterY - scaledAttachmentY) * lerpAmount;
 
                         entityList.push({
                             ...entity,
-                            center: new Vector2(curX, curY),
+                            center: new Vector2(finalCenterX, finalCenterY),
                             // radius grows smoothly from near-zero to full size
                             radius: entity.radius * scale * radiusScale,
                             // Full opacity during growth (no fading)
@@ -409,6 +402,7 @@ async function generateVideo() {
     console.log(`   Tree Width: ${treeWidth.toFixed(0)}, Height: ${treeHeight.toFixed(0)}`);
     console.log(`   Scale: ${finalScale.toFixed(3)}`);
     console.log(`   Offset: ${offsetX.toFixed(0)}, ${offsetY.toFixed(0)}`);
+    console.log(`TRUNK_START_POSITION: ${JSON.stringify({ x: offsetX, y: offsetY })}`);
 
     const maxDistance = getMaxDist(fullTree);
     console.log(`   Max Growth Distance: ${maxDistance.toFixed(0)}`);

@@ -1,0 +1,10 @@
+{
+  "trees": [
+    { "imagePath": "samples/img1.png", "gridX": 1, "gridY": 1, "scale": 0.3, "trunkStartPosition": {"x":428.3757433029874,"y":1000} },
+    { "imagePath": "samples/img2.png", "gridX": 3, "gridY": 1, "scale": 0.3, "trunkStartPosition":  {"x":448.89012053296267,"y":1000} },
+    { "imagePath": "samples/img3.png", "gridX": 2, "gridY": 2, "scale": 0.3, "trunkStartPosition": {"x":604.7159825277463,"y":1000} },
+    { "imagePath": "samples/img4.png", "gridX": 3, "gridY": 3, "scale": 0.3, "trunkStartPosition":  {"x":471.0018222099691,"y":1000} }
+
+]
+}
+
