@@ -76,7 +76,7 @@ function drawShadow(ctx: any, centerX: number, centerY: number) {
   const radiusX = CONFIG.tileWidth / 4.5;
   const radiusY = CONFIG.tileWidth / 9;
   ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
-  ctx.fillStyle = 'rgba(40, 60, 20, 0.05)'; // A dark, semi-transparent green
+  ctx.fillStyle = 'rgba(40, 60, 20, 0.066)'; // A dark, semi-transparent green
   ctx.fill();
 }
 
