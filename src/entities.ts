@@ -7,6 +7,7 @@ import { Lavender } from "./entities/lavendar";
 import { PinkBallsTree } from "./entities/pink-balls-tree";
 import {  WeepingWillow } from "./entities/weeping-willow";
 import { Maple } from "./entities/maple";
+import { Wisteria } from "./entities/wisteria";
 
 export
 const entities: Map<string, Generate> = new Map<string, Generate>([
@@ -17,5 +18,6 @@ const entities: Map<string, Generate> = new Map<string, Generate>([
     ["lavender", new Lavender()],
     ["pink_balls_tree", new PinkBallsTree()],
     ["maple", new Maple()],
+    ["wisteria", new Wisteria()],
     ["weeping_willow", new WeepingWillow()]
 ]);
