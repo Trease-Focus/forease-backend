@@ -20,4 +20,7 @@ export class SeededRandom {
     nextInt(min: number, max: number): number {
         return Math.floor(this.nextFloat(min, max));
     }
+    nextBoolean():Boolean {
+        return this.next() >= 0.5;
+    }
 }

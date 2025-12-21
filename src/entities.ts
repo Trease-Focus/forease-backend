@@ -4,7 +4,8 @@ import { Sunflower } from "./entities/sunflower";
 import { Cedar } from "./entities/cedar";
 import { Sakura } from "./entities/sakura";
 import { Lavender } from "./entities/lavendar";
-import { PinkBallsTree } from "./entities/PinkBallsTree";
+import { PinkBallsTree } from "./entities/pink-balls-tree";
+import {  WeepingWillow } from "./entities/weeping-willow";
 
 export
 const entities: Map<string, Generate> = new Map<string, Generate>([
@@ -13,5 +14,6 @@ const entities: Map<string, Generate> = new Map<string, Generate>([
     ["sakura", new Sakura()],
     ["cedar", new Cedar()],
     ["lavender", new Lavender()],
-    ["pink_balls_tree", new PinkBallsTree()]
+    ["pink_balls_tree", new PinkBallsTree()],
+    ["weeping_willow", new WeepingWillow()]
 ]);
