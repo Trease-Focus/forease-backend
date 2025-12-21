@@ -159,7 +159,9 @@ function drawOrganicPlant(ctx: CanvasRenderingContext2D, flowerImg: Image, insta
                 const point = points[i];
                 const side = (i / 4) % 2 === 0 ? 1 : -1;
                 const leafGrowth = Math.min(1, (branchProgress - i) / 4); 
-                drawRealisticLeaf(ctx, point.x, point.y, side, point.width, leafGrowth, config);
+                if (point) {
+                    drawRealisticLeaf(ctx, point.x, point.y, side, point.width, leafGrowth, config);
+                }
             }
         }
     }

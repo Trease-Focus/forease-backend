@@ -16,11 +16,11 @@ export const DEFAULT_CONFIG: Config = {
     photoOnly: true,
     width: 480, 
     height: 480,
-    fps: 30, 
+    fps: 25, 
     durationSeconds: 30, 
     seed: randomBytes(16).toString('hex'), // Random seed for unique tree", 
     filename: "video.webm",
     imageFilename: "image.png",
     padding: 80, // Padding from edges
-    save_as_file: false,
+    save_as_file: false
 };

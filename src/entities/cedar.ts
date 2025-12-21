@@ -1,39 +1,16 @@
 import { createCanvas, CanvasRenderingContext2D } from 'canvas';
-import { spawn } from 'child_process';
-import { createHash, randomBytes } from 'crypto';
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
+import { SeededRandom } from '../core/seeded-random';
+import type { Color } from '../types/color';
+import { DEFAULT_CONFIG, type Config } from '../types/config';
+import type { Generate } from '../models/generate';
+import type { GeneratorResult } from '../types/generator-result';
+import type { Context } from 'baojs';
+import { getFFmpegArgs } from '../core/ffmpeg-args';
 
-// --- CONFIGURATION ---
-const CONFIG = {
-    photoOnly: true, 
-    width: 1080, 
-    height: 1080,
-    fps: 30, 
-    durationSeconds: 12, 
-    seed: randomBytes(16).toString('hex'), 
-    filename: "perfect_fit_cedar.webm",
-    imageFilename: "cedar_render.png",
-    padding: 100 
-};
-
-// --- MATH HELPERS ---
 class Vector2 { constructor(public x: number, public y: number) {} }
 
-class SeededRandom {
-    private seed: number;
-    constructor(seedString: string) {
-        const hash = createHash('sha256').update(seedString).digest('hex');
-        this.seed = parseInt(hash.substring(0, 15), 16);
-    }
-    next(): number {
-        this.seed = (this.seed * 1664525 + 1013904223) % 4294967296;
-        return this.seed / 4294967296;
-    }
-    nextFloat(min: number, max: number): number { return min + this.next() * (max - min); }
-    nextInt(min: number, max: number): number { return Math.floor(this.nextFloat(min, max)); }
-}
-
-interface Color { r: number; g: number; b: number; a: number; }
 interface Entity {
     center: Vector2; radius: number;
     baseColor: Color; highlightColor: Color;
@@ -57,8 +34,6 @@ interface Bounds { minX: number; maxX: number; minY: number; maxY: number; }
 
 const coerceIn = (val: number, min: number, max: number) => Math.max(min, Math.min(val, max));
 const smoothStep = (t: number): number => t * t * (3 - 2 * t);
-
-// --- GENERATION ---
 
 function generateCedar(
     rand: SeededRandom, start: Vector2, length: number, angle: number,
@@ -168,72 +143,141 @@ function flattenTree(b: Branch, bList: SimpleBranch[], eList: Entity[], progress
     b.children.forEach(c => flattenTree(c, bList, eList, progress, scale, ox, oy));
 }
 
-// --- RENDER ---
+export class Cedar implements Generate {
+    getInfo(config?: Config): Promise<GeneratorResult> {
+        if (!config) {
+            throw new Error('Config is required to get tree info.');
+        }
 
-async function run() {
-    const canvas = createCanvas(CONFIG.width, CONFIG.height);
-    const ctx = canvas.getContext('2d');
-    const rand = new SeededRandom(CONFIG.seed);
+        const rand = new SeededRandom(config.seed);
+        const fullTree = generateCedar(rand, new Vector2(0,0), 220, -90, 8, 0);
+        const bounds = calculateBounds(fullTree);
+        
+        const treeW = bounds.maxX - bounds.minX;
+        const scale = Math.min((config.width - config.padding*2) / treeW, (config.height - config.padding*2) / (bounds.maxY - bounds.minY));
+        const offX = (config.width / 2) - ((bounds.minX + treeW/2) * scale);
+        const offY = (config.height - config.padding) - (bounds.maxY * scale);
 
-    console.log("📐 Planning perfect-fit cedar structure...");
-    const fullTree = generateCedar(rand, new Vector2(0,0), 220, -90, 8, 0);
-    const bounds = calculateBounds(fullTree);
-    
-    // Auto-fit Logic
-    const treeW = bounds.maxX - bounds.minX;
-    const treeH = bounds.maxY - bounds.minY;
-    const scale = Math.min((CONFIG.width - CONFIG.padding*2) / treeW, (CONFIG.height - CONFIG.padding*2) / treeH);
-    const offX = (CONFIG.width / 2) - ((bounds.minX + treeW/2) * scale);
-    const offY = (CONFIG.height - CONFIG.padding) - (bounds.maxY * scale);
-
-    const ffmpeg = spawn('ffmpeg', [
-        '-y', '-f', 'image2pipe', '-r', `${CONFIG.fps}`, '-i', '-',
-        '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', CONFIG.filename
-    ]);
-
-    const totalFrames = CONFIG.durationSeconds * CONFIG.fps;
-    const maxGrowth = 3500; 
-
-    for (let f = 0; f <= totalFrames; f++) {
-        const progress = (f / totalFrames) * maxGrowth;
-        ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
-
-        const branches: SimpleBranch[] = [];
-        const entities: Entity[] = [];
-        flattenTree(fullTree, branches, entities, progress, scale, offX, offY);
-
-        // Draw Bark
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#3e2723'; // Dark bark
-        branches.forEach(b => {
-            ctx.beginPath();
-            ctx.lineWidth = b.strokeWidth;
-            ctx.moveTo(b.start.x, b.start.y);
-            ctx.quadraticCurveTo(b.control.x, b.control.y, b.end.x, b.end.y);
-            ctx.stroke();
+        return Promise.resolve({
+            trunkStartPosition: { x: offX, y: offY }
         });
-
-        // Draw Foliage Ellipses
-        entities.sort((a,b) => a.center.y - b.center.y);
-        entities.forEach(e => {
-            ctx.globalAlpha = e.opacity || 0;
-            const g = ctx.createRadialGradient(e.center.x, e.center.y - e.radius*0.3, 0, e.center.x, e.center.y, e.radius);
-            g.addColorStop(0, `rgb(${e.highlightColor.r},${e.highlightColor.g},${e.highlightColor.b})`);
-            g.addColorStop(1, `rgb(${e.baseColor.r},${e.baseColor.g},${e.baseColor.b})`);
-            ctx.fillStyle = g;
-            ctx.beginPath();
-            ctx.ellipse(e.center.x, e.center.y, e.radius * 1.6, e.radius, 0, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        ctx.globalAlpha = 1.0;
-        ffmpeg.stdin.write(canvas.toBuffer('image/png'));
-        if (f % 30 === 0) process.stdout.write(`\rProgress: ${Math.round((f/totalFrames)*100)}%`);
     }
 
-    ffmpeg.stdin.end();
-    fs.writeFileSync(CONFIG.imageFilename, canvas.toBuffer('image/png'));
-    console.log(`\n✨ Perfect cedar saved to ${CONFIG.filename}`);
-}
+    async generate(con: Context, onStream?:(process:ChildProcessWithoutNullStreams,videoStream:ChildProcessWithoutNullStreams['stdout']) => void, CONFIG: Config = DEFAULT_CONFIG): Promise<GeneratorResult> {
+        const canvas = createCanvas(CONFIG.width, CONFIG.height);
+        const ctx = canvas.getContext('2d');
+        const rand = new SeededRandom(CONFIG.seed);
 
-run().catch(console.error);
+        console.log("📐 Planning perfect-fit cedar structure...");
+        const fullTree = generateCedar(rand, new Vector2(0,0), 220, -90, 8, 0);
+        const bounds = calculateBounds(fullTree);
+        
+        // Auto-fit Logic
+        const treeW = bounds.maxX - bounds.minX;
+        const treeH = bounds.maxY - bounds.minY;
+        const scale = Math.min((CONFIG.width - CONFIG.padding*2) / treeW, (CONFIG.height - CONFIG.padding*2) / treeH);
+        const offX = (CONFIG.width / 2) - ((bounds.minX + treeW/2) * scale);
+        const offY = (CONFIG.height - CONFIG.padding) - (bounds.maxY * scale);
+
+        if (CONFIG.photoOnly) {
+            console.log("📸 Generating final cedar image only (video creation skipped).");
+            const progress = 3500;
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            const branches: SimpleBranch[] = [];
+            const entities: Entity[] = [];
+            flattenTree(fullTree, branches, entities, progress, scale, offX, offY);
+
+            // Draw Bark
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#3e2723'; // Dark bark
+            branches.forEach(b => {
+                ctx.beginPath();
+                ctx.lineWidth = b.strokeWidth;
+                ctx.moveTo(b.start.x, b.start.y);
+                ctx.quadraticCurveTo(b.control.x, b.control.y, b.end.x, b.end.y);
+                ctx.stroke();
+            });
+
+            // Draw Foliage Ellipses
+            entities.sort((a,b) => a.center.y - b.center.y);
+            entities.forEach(e => {
+                ctx.globalAlpha = e.opacity || 0;
+                const g = ctx.createRadialGradient(e.center.x, e.center.y - e.radius*0.3, 0, e.center.x, e.center.y, e.radius);
+                g.addColorStop(0, `rgb(${e.highlightColor.r},${e.highlightColor.g},${e.highlightColor.b})`);
+                g.addColorStop(1, `rgb(${e.baseColor.r},${e.baseColor.g},${e.baseColor.b})`);
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.ellipse(e.center.x, e.center.y, e.radius * 1.6, e.radius, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            const finalBuffer = canvas.toBuffer('image/png');
+            if (CONFIG.save_as_file) {
+                fs.writeFileSync(CONFIG.imageFilename, finalBuffer);
+            }
+            console.log(`\n✅ Image generation complete!`);
+            return {
+                imageBuffer: finalBuffer,
+                imagePath: CONFIG.save_as_file ? CONFIG.imageFilename : undefined,
+                trunkStartPosition: { x: offX, y: offY }
+            };
+        }
+
+        const ffmpegArgs = getFFmpegArgs(CONFIG);
+        const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+
+        if (onStream) {
+            onStream(ffmpeg, ffmpeg.stdout);
+        }
+
+        const totalFrames = CONFIG.durationSeconds * CONFIG.fps;
+        const maxGrowth = 3500; 
+
+        for (let f = 0; f <= totalFrames; f++) {
+            const progress = (f / totalFrames) * maxGrowth;
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            const branches: SimpleBranch[] = [];
+            const entities: Entity[] = [];
+            flattenTree(fullTree, branches, entities, progress, scale, offX, offY);
+
+            // Draw Bark
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#3e2723'; // Dark bark
+            branches.forEach(b => {
+                ctx.beginPath();
+                ctx.lineWidth = b.strokeWidth;
+                ctx.moveTo(b.start.x, b.start.y);
+                ctx.quadraticCurveTo(b.control.x, b.control.y, b.end.x, b.end.y);
+                ctx.stroke();
+            });
+
+            // Draw Foliage Ellipses
+            entities.sort((a,b) => a.center.y - b.center.y);
+            entities.forEach(e => {
+                ctx.globalAlpha = e.opacity || 0;
+                const g = ctx.createRadialGradient(e.center.x, e.center.y - e.radius*0.3, 0, e.center.x, e.center.y, e.radius);
+                g.addColorStop(0, `rgb(${e.highlightColor.r},${e.highlightColor.g},${e.highlightColor.b})`);
+                g.addColorStop(1, `rgb(${e.baseColor.r},${e.baseColor.g},${e.baseColor.b})`);
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.ellipse(e.center.x, e.center.y, e.radius * 1.6, e.radius, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.globalAlpha = 1.0;
+            const buffer = canvas.toBuffer('image/png');
+            const ok = ffmpeg.stdin.write(buffer);
+            if (!ok) await new Promise(resolve => ffmpeg.stdin.once('drain', resolve));
+        }
+
+        ffmpeg.stdin.end();
+        
+        return {
+            videoPath: CONFIG.filename,
+            trunkStartPosition: { x: offX, y: offY }
+        };
+    }
+}

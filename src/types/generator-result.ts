@@ -1,4 +1,5 @@
 
+
 export type GeneratorResult = {
     videoPath?: string;
     imagePath?: string;

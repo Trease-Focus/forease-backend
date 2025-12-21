@@ -1,27 +1,38 @@
-import { createCanvas, CanvasRenderingContext2D, Image, loadImage } from 'canvas';
+import { createCanvas, CanvasRenderingContext2D, Image, loadImage, Canvas } from 'canvas';
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
+import { SeededRandom } from '../core/seeded-random';
+import type { Generate } from '../models/generate';
+import type { Context } from 'baojs';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { DEFAULT_CONFIG, type Config } from '../types/config';
+import type { GeneratorResult } from '../types/generator-result';
+import { get } from 'node:http';
+import { getFFmpegArgs } from '../core/ffmpeg-args';
 
-/**
- * Deterministic Random Generator based on a Seed string.
- * This ensures Seed #123 always grows the same tree.
- */
-class SeededRandom {
-    private seed: number;
-    constructor(seedStr: string) {
-        const hash = createHash('sha256').update(seedStr).digest('hex');
-        this.seed = parseInt(hash.substring(0, 8), 16);
+
+export class Lavender implements Generate {
+    async generate(ctx: Context, onStream?: (process: ChildProcessWithoutNullStreams, videoStream: ChildProcessWithoutNullStreams['stdout']) => void, CONFIG: Config = DEFAULT_CONFIG): Promise<GeneratorResult> {
+        const grower = new LavenderGrower(CONFIG);
+        await grower.init();
+        if (CONFIG.photoOnly) {
+            return await grower.generatePhoto();
+        } else {
+            await grower.generateVideo(onStream);
+            return { videoPath: CONFIG.filename };
+        }
     }
-    next() {
-        this.seed = (this.seed * 9301 + 49297) % 233280;
-        return this.seed / 233280;
+    getInfo(Config?: Config): Promise<GeneratorResult> {
+        throw new Error('Method not implemented.');
     }
 }
 
+    
+
 class LavenderGrower {
-    private canvas = createCanvas(1080, 1080);
-    private ctx = this.canvas.getContext('2d');
+    private canvas : Canvas;
+    private ctx: CanvasRenderingContext2D;
     private rng: SeededRandom;
     private flowerImg!: Image;
     private plantStructure: any;
@@ -29,46 +40,46 @@ class LavenderGrower {
     private scale: number = 1;
     private offsetX: number = 0;
     private offsetY: number = 0;
+    private config: Config = DEFAULT_CONFIG;
 
-    constructor(private seed: string) {
-        this.rng = new SeededRandom(seed);
+    constructor(private conf: Config) {
+        this.config = conf;
+        this.canvas = createCanvas(conf.height, conf.width);
+        this.ctx = this.canvas.getContext('2d');
+        this.rng = new SeededRandom(conf.seed);
         this.plantStructure = this.generatePlantStructure();
         this.calculateAndSetTransform();
     }
 
-    async init(imagePath: string) {
-        this.flowerImg = await loadImage(imagePath);
+    async init() {
+        this.flowerImg = await loadImage("./assets/lavender.png");
     }
 
     /**
      * GENERATE PHOTO
      * Renders a static high-res image of the unique plant.
      */
-    async generatePhoto(outputPath: string) {
+    async generatePhoto():Promise<GeneratorResult> {
         this.renderPlant(1.0); // Render at 100% growth
         const buffer = this.canvas.toBuffer('image/png');
-        fs.writeFileSync(outputPath, buffer);
-        console.log(`✨ Photo saved: ${outputPath} (Seed: ${this.seed})`);
+        if(this.config.save_as_file){
+            const outputPath = this.config.imageFilename || './lavender_photo.png';
+            fs.writeFileSync(outputPath, buffer);
+            console.log(`✨ Photo saved: ${outputPath} (Seed: ${this.conf.seed})`);
+        }
+        return { imageBuffer: buffer  };
     }
 
     /**
      * GENERATE VIDEO
      * Uses ffmpeg to pipe frames into a webm video with transparency.
      */
-    async generateVideo(outputPath: string, durationSec: number = 5) {
-        const fps = 30;
-        const totalFrames = durationSec * fps;
+    async generateVideo(onStream?:(process:ChildProcessWithoutNullStreams,videoStream:ChildProcessWithoutNullStreams['stdout']) => void,) {
+        const totalFrames = this.config.durationSeconds * this.config.fps;
         
-        const ffmpeg = spawn('ffmpeg', [
-            '-y', 
-            '-f', 'image2pipe', 
-            '-r', `${fps}`,
-            '-i', '-', 
-            '-c:v', 'libvpx-vp9',
-            '-pix_fmt', 'yuva420p',
-            '-auto-alt-ref', '0',
-            outputPath
-        ]);
+        const ffmpegArgs = getFFmpegArgs(this.config);
+        const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+        if (onStream) onStream(ffmpeg, ffmpeg.stdout);
 
         for (let i = 0; i <= totalFrames; i++) {
             const progress = i / totalFrames;
@@ -78,8 +89,6 @@ class LavenderGrower {
         }
 
         ffmpeg.stdin.end();
-        await new Promise(resolve => ffmpeg.on('close', resolve));
-        console.log(`🎥 Video saved: ${outputPath}`);
     }
 
     private generatePlantStructure() {
@@ -104,7 +113,8 @@ class LavenderGrower {
                 });
             }
             maxDist = Math.max(maxDist, length);
-            stems.push({ angle, length, curve, leaves, dist: 0 });
+            const flowerRotationOffset = (this.rng.next() - 0.5) * 0.3;
+            stems.push({ angle, length, curve, leaves, dist: 0, flowerRotationOffset });
         }
         return { baseX, baseY, stems, maxDist };
     }
@@ -124,14 +134,14 @@ class LavenderGrower {
         }
         this.bounds = bounds;
 
-        const padding = 100;
+        const padding = this.config.padding;
         const availW = this.canvas.width - (padding * 2);
         const availH = this.canvas.height - (padding * 2);
 
         const treeWidth = this.bounds.maxX - this.bounds.minX;
         const treeHeight = this.bounds.maxY - this.bounds.minY;
 
-        this.scale = Math.min(availW / treeWidth, availH / treeHeight) * 0.5;
+        this.scale = Math.min(availW / treeWidth, availH / treeHeight) * 0.9;
 
         const treeCenterX = this.bounds.minX + (treeWidth / 2);
         this.offsetX = (this.canvas.width / 2) - (treeCenterX * this.scale);
@@ -147,11 +157,11 @@ class LavenderGrower {
         ctx.clearRect(0, 0, 1080, 1080);
 
         for (const stem of stems) {
-            this.drawStem(baseX, baseY, stem.angle, stem.length, stem.curve, stem.leaves, growthDistance);
+            this.drawStem(baseX, baseY, stem.angle, stem.length, stem.curve, stem.leaves, growthDistance, stem.flowerRotationOffset);
         }
     }
 
-    private drawStem(x: number, y: number, angle: number, len: number, curve: number, leaves: any[], growthDistance: number) {
+    private drawStem(x: number, y: number, angle: number, len: number, curve: number, leaves: any[], growthDistance: number, flowerRotationOffset: number) {
         if (growthDistance <= 0) return;
 
         const ctx = this.ctx;
@@ -216,7 +226,7 @@ class LavenderGrower {
         // Attach Flower at the top
         if (growthDistance > len) {
             const flowerScale = Math.min(1, (growthDistance - len) / 100); // 100 "units" of growth time
-            this.drawFlower(endX, endY, angle, flowerScale);
+            this.drawFlower(endX, endY, angle, flowerScale, flowerRotationOffset);
         }
     }
 
@@ -234,7 +244,7 @@ class LavenderGrower {
         this.ctx.restore();
     }
 
-    private drawFlower(x: number, y: number, angle: number, scale: number) {
+    private drawFlower(x: number, y: number, angle: number, scale: number, rotationOffset: number) {
         const img = this.flowerImg;
         if (!img) return;
         const w = 60 * scale * this.scale;
@@ -245,20 +255,8 @@ class LavenderGrower {
 
         this.ctx.save();
         this.ctx.translate(drawX, drawY);
-        this.ctx.rotate(angle + Math.PI / 2 + (this.rng.next() - 0.5) * 0.3);
+        this.ctx.rotate(angle + Math.PI / 2 + rotationOffset);
         this.ctx.drawImage(img, -w / 2, -h, w, h);
         this.ctx.restore();
     }
 }
-
-// --- RUNTIME ---
-async function main() {
-    const mySeed = "balls"; // This would be your random seed range
-    const grower = new LavenderGrower(mySeed);
-
-    await grower.init('./assets/lavender.png'); // Your uploaded image
-    await grower.generatePhoto('./unique_lavender.png');
-    await grower.generateVideo('./growth_sequence.webm');
-}
-
-main().catch(console.error);
