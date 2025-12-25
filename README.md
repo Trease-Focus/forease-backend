@@ -141,19 +141,13 @@ GET /image?type={plant}&seed={seed}
 
 <br/>
 
+
+<img src="samples/tree_growth.gif" alt="tree growth gif" width="140"/>
 ### Generate Video
 
 ```http
 GET /video?type={plant}&seed={seed}
 ```
-
-<p align="center">
-    <video width="400" controls>
-        <source src="samples/tree_growth.webm" type="video/webm">
-        Your browser does not support the video tag.
-    </video>
-</p>
-
 
 ```http
 GET /video?type={plant}&seed={seed}
