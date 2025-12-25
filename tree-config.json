@@ -3,14 +3,14 @@
       { "imagePath": "samples/sakura.png", "gridX": 1, "gridY": 1, "scale": 0.8 },
        { "imagePath": "samples/cedar.png", "gridX": 1, "gridY": 2, "scale": 0.8 },
        { "imagePath": "samples/lavender.png", "gridX": 1, "gridY": 3, "scale": 0.8 },
-         { "imagePath": "samples/maple.png", "gridX": 2, "gridY": 2, "scale": 0.8 },
-         { "imagePath": "samples/sunflower.png", "gridX": 2, "gridY": 3, "scale": 0.8 },
-         { "imagePath": "samples/weeping_willow.png", "gridX": 5, "gridY": 1, "scale": 0.8 },
-         { "imagePath": "samples/tree.png", "gridX": 3, "gridY": 2, "scale": 0.8 },
-         { "imagePath": "samples/wisteria.png", "gridX": 3, "gridY": 3, "scale": 0.8 },
-         { "imagePath": "samples/pink_balls_tree.png", "gridX": 4, "gridY": 1, "scale": 0.8 },
-         { "imagePath": "samples/sakura.png", "gridX": 4, "gridY": 2, "scale": 0.8 },
-         { "imagePath": "samples/maple2.png", "gridX": 4, "gridY": 3, "scale": 0.8 }
+         { "imagePath": "samples/maple.png", "gridX": 2, "gridY":1, "scale": 0.8 },
+         { "imagePath": "samples/sunflower.png", "gridX": 2, "gridY": 2, "scale": 0.8 },
+         { "imagePath": "samples/weeping_willow.png", "gridX": 2, "gridY": 3, "scale": 0.8 },
+         { "imagePath": "samples/tree.png", "gridX": 3, "gridY": 1, "scale": 0.8 },
+         { "imagePath": "samples/wisteria.png", "gridX": 3, "gridY": 2, "scale": 0.8 },
+         { "imagePath": "samples/pink_balls_tree.png", "gridX": 3, "gridY": 3, "scale": 0.8 },
+         { "imagePath": "samples/sakura.png", "gridX": 4, "gridY": 1, "scale": 0.8 },
+         { "imagePath": "samples/maple2.png", "gridX": 4, "gridY": 2, "scale": 0.8 }
 
          
    ]

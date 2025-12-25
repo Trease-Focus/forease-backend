@@ -9,6 +9,8 @@ app.get("/", (ctx) => {
   return ctx.sendText("Hello World!");
 });
 
+
+// Endpoint to generate image or video based on query parameters
 app.get("/image", async (ctx) => {
     const url = new URL(ctx.req.url);
     const config: Config = {
@@ -27,6 +29,7 @@ app.get("/image", async (ctx) => {
 
     return ctx.sendRaw(new Response(result.imageBuffer, { headers: { 'Content-Type': 'image/png',  } }));
 });
+
 
 app.get("/video", async (ctx) => {
     const url = new URL(ctx.req.url);
@@ -67,6 +70,7 @@ app.get("/video", async (ctx) => {
       "Transfer-Encoding": "chunked"
     }
   }));
+
 
 });
 
