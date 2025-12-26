@@ -2,16 +2,16 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { writeFile, readFile } from 'fs/promises';
 
 // --- Configuration ---
-const SCALE = 4; // 4x Resolution for high-quality (Retina) output
+export const SCALE = 4; // 4x Resolution for high-quality (Retina) output
 
-interface TreeConfig {
+export interface TreeConfig {
   imagePath: string;
   gridX: number;
   gridY: number;
   scale: number;
 }
 
-const CONFIG = {
+export const CONFIG = {
   tileWidth: 100 * SCALE,
   grassHeight: 15 * SCALE,
   soilHeight: 40 * SCALE,
@@ -25,7 +25,7 @@ const CONFIG = {
 };
 
 // --- Palette ---
-const COLORS = {
+export const COLORS = {
   grass: {
     top: '#9FD26A',       // slightly muted, less bright
     sideLight: '#90C85E', // closer to top
@@ -40,7 +40,7 @@ const COLORS = {
 };
 
 
-interface GridPosition {
+export interface GridPosition {
   gridX: number;
   gridY: number;
   pixelX: number;
@@ -55,7 +55,7 @@ let treePlacements: TreeConfig[] = [];
 /**
  * Draws a filled polygon.
  */
-function drawPoly(ctx: any, points: {x: number, y: number}[], color: string, strokeColor?: string) {
+export function drawPoly(ctx: any, points: {x: number, y: number}[], color: string, strokeColor?: string) {
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) {
@@ -71,7 +71,7 @@ function drawPoly(ctx: any, points: {x: number, y: number}[], color: string, str
   ctx.stroke();
 }
 
-function drawShadow(ctx: any, centerX: number, centerY: number, contentWidth?: number) {
+export function drawShadow(ctx: any, centerX: number, centerY: number, contentWidth?: number) {
   ctx.beginPath();
   // Use content width if provided, otherwise use default
   const radiusX = contentWidth ? contentWidth / 2 : CONFIG.tileWidth / 4.5;
@@ -102,7 +102,7 @@ function drawTuft(ctx: any, centerX: number, centerY: number) {
  * - xOffset: horizontal offset from image center to content center
  * - contentWidth: actual width of the content at the bottom in pixels
  */
-function detectTreeContentPosition(image: any): { xOffset: number, yPadding: number, contentWidth: number } {
+export function detectTreeContentPosition(image: any): { xOffset: number, yPadding: number, contentWidth: number } {
   // Create a temporary canvas to read pixel data
   const tempCanvas = createCanvas(image.width, image.height);
   const tempCtx = tempCanvas.getContext('2d');
@@ -185,7 +185,7 @@ function detectTreeContentPosition(image: any): { xOffset: number, yPadding: num
   return { xOffset, yPadding, contentWidth };
 }
 
-function drawIsoBlock(ctx: any, pos: GridPosition, treeConfig: TreeConfig | undefined, shadowWidth?: number) {
+export function drawIsoBlock(ctx: any, pos: GridPosition, treeConfig: TreeConfig | undefined, shadowWidth?: number) {
   const { gridX, gridY, pixelX, pixelY } = pos;
 
   const w = CONFIG.tileWidth;
@@ -254,21 +254,20 @@ function drawIsoBlock(ctx: any, pos: GridPosition, treeConfig: TreeConfig | unde
   }
 }
 
-// --- Main Execution ---
-async function main() {
-  console.log("Reading configuration files...");
-  try {
-    const treeConfigFile = await readFile(CONFIG.treeConfigFilename, 'utf-8');
-    const treeConfigData = JSON.parse(treeConfigFile);
-    treePlacements = treeConfigData.trees;
-  } catch (error) {
-    console.error(`Error reading or parsing configuration files:`, error);
-    return;
-  }
+export interface GridOptions {
+  trees: TreeConfig[];
+  outputFilename: string;
+  dataFilename?: string;
+}
+
+// --- Exported Grid Generation Function ---
+export async function generateGrid(options: GridOptions): Promise<Buffer> {
+  const { trees, outputFilename, dataFilename } = options;
+  const positions: GridPosition[] = [];
 
   // Determine grid size from tree placements
-  let maxGridDim = 3; // Minimum size
-  for (const tree of treePlacements) {
+  let maxGridDim = 1;
+  for (const tree of trees) {
     if (tree.gridX > maxGridDim - 1) maxGridDim = tree.gridX + 1;
     if (tree.gridY > maxGridDim - 1) maxGridDim = tree.gridY + 1;
   }
@@ -289,43 +288,40 @@ async function main() {
 
   // Create a map for quick lookup of trees by grid position
   const treeMap = new Map<string, TreeConfig>();
-  for (const tree of treePlacements) {
+  for (const tree of trees) {
     treeMap.set(`${tree.gridX},${tree.gridY}`, tree);
   }
 
   // Load all unique tree images and detect content position
   const loadedTrees = new Map<string, any>();
   const treeOffsets = new Map<string, { xOffset: number, yPadding: number }>();
-  for (const tree of treePlacements) {
-      if (!loadedTrees.has(tree.imagePath)) {
-          try {
-            const image = await loadImage(tree.imagePath);
-            loadedTrees.set(tree.imagePath, image);
-            
-            // Detect content position
-            const offsets = detectTreeContentPosition(image);
-            treeOffsets.set(tree.imagePath, offsets);
-            
-            console.log(`Loaded image: ${tree.imagePath} (xOffset: ${offsets.xOffset.toFixed(1)}px, yPadding: ${offsets.yPadding}px)`);
-          } catch (e) {
-              console.error(`Could not load image: ${tree.imagePath}`);
-          }
+  for (const tree of trees) {
+    if (!loadedTrees.has(tree.imagePath)) {
+      try {
+        const image = await loadImage(tree.imagePath);
+        loadedTrees.set(tree.imagePath, image);
+        const offsets = detectTreeContentPosition(image);
+        treeOffsets.set(tree.imagePath, offsets);
+        console.log(`Loaded image: ${tree.imagePath} (xOffset: ${offsets.xOffset.toFixed(1)}px, yPadding: ${offsets.yPadding}px)`);
+      } catch (e) {
+        console.error(`Could not load image: ${tree.imagePath}`);
       }
+    }
   }
 
-  // First, generate all grid positions
+  // Generate all grid positions
   for (let y = 0; y < CONFIG.gridSize; y++) {
     for (let x = 0; x < CONFIG.gridSize; x++) {
-        const isoX = (x - y) * (CONFIG.tileWidth / 2);
-        const isoY = (x + y) * (CONFIG.tileWidth / 4);
-        const pixelX = startX + isoX;
-        const pixelY = startY + isoY + (CONFIG.tileWidth / 4);
-        positions.push({
-            gridX: x,
-            gridY: y,
-            pixelX: Math.round(pixelX),
-            pixelY: Math.round(pixelY)
-        });
+      const isoX = (x - y) * (CONFIG.tileWidth / 2);
+      const isoY = (x + y) * (CONFIG.tileWidth / 4);
+      const pixelX = startX + isoX;
+      const pixelY = startY + isoY + (CONFIG.tileWidth / 4);
+      positions.push({
+        gridX: x,
+        gridY: y,
+        pixelX: Math.round(pixelX),
+        pixelY: Math.round(pixelY)
+      });
     }
   }
 
@@ -333,46 +329,60 @@ async function main() {
   const sortedPositions = [...positions].sort((a, b) => {
     return (a.gridY + a.gridX) - (b.gridY + b.gridX);
   });
-for (const pos of sortedPositions) {
+
+  for (const pos of sortedPositions) {
     const treeConfig = treeMap.get(`${pos.gridX},${pos.gridY}`);
     drawIsoBlock(ctx, pos, treeConfig);
-// Inside your sortedPositions loop...
-if (treeConfig) {
-    const image = loadedTrees.get(treeConfig.imagePath);
-    if (image) {
-        // 1. Determine the actual size the tree will be drawn at
+
+    if (treeConfig) {
+      const image = loadedTrees.get(treeConfig.imagePath);
+      if (image) {
         const treeScale = treeConfig.scale || 0.5;
         const drawWidth = image.width * treeScale;
         const drawHeight = image.height * treeScale;
-        
-        // 2. Get the detected content position offsets for this image
         const offsets = treeOffsets.get(treeConfig.imagePath) || { xOffset: 0, yPadding: 0 };
         const xOffsetScaled = offsets.xOffset * treeScale;
         const yPaddingScaled = offsets.yPadding * treeScale;
-        
-        /**
-         * AUTOMATIC CENTERING LOGIC WITH CONTENT DETECTION:
-         * We want the actual BOTTOM-CENTER of the tree content to align with the tile center.
-         * * drawX: Subtract half the width to center the image, then adjust by xOffset
-         *   to align the content center (not image center) with the tile.
-         * * drawY: Subtract the FULL height, then ADD back the bottom padding
-         *   to compensate for transparent pixels at the bottom.
-         */
         const drawX = pos.pixelX - (drawWidth / 2) - xOffsetScaled;
         const drawY = pos.pixelY - drawHeight + yPaddingScaled;
-
         ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
- 
       }
-}
-}
+    }
+  }
 
   const buffer = await canvas.encode('png');
-  await writeFile(CONFIG.filename, buffer);
-  await writeFile(CONFIG.dataFilename, JSON.stringify(positions, null, 2));
+  await writeFile(outputFilename, buffer);
+  
+  if (dataFilename) {
+    await writeFile(dataFilename, JSON.stringify(positions, null, 2));
+    console.log(`✅ Positions saved: ${dataFilename}`);
+  }
 
-  console.log(`✅ HD Grid with trees generated: ${CONFIG.filename} (${CONFIG.canvasWidth}x${CONFIG.canvasHeight})`);
-  console.log(`✅ Positions saved: ${CONFIG.dataFilename}`);
+  console.log(`✅ HD Grid generated: ${outputFilename} (${CONFIG.canvasWidth}x${CONFIG.canvasHeight})`);
+  return buffer;
 }
 
-main().catch(console.error);
+// --- Main Execution ---
+async function main() {
+  console.log("Reading configuration files...");
+  let treePlacements: TreeConfig[] = [];
+  try {
+    const treeConfigFile = await readFile(CONFIG.treeConfigFilename, 'utf-8');
+    const treeConfigData = JSON.parse(treeConfigFile);
+    treePlacements = treeConfigData.trees;
+  } catch (error) {
+    console.error(`Error reading or parsing configuration files:`, error);
+    return;
+  }
+
+  await generateGrid({
+    trees: treePlacements,
+    outputFilename: CONFIG.filename,
+    dataFilename: CONFIG.dataFilename
+  });
+}
+
+// Only run main if this file is executed directly
+if (require.main === module) {
+  main().catch(console.error);
+}

@@ -133,8 +133,9 @@ function drawOrganicPlant(ctx: CanvasRenderingContext2D, flowerImg: Image, insta
         if (!p1 || !p2) continue;
 
         const grad = ctx.createLinearGradient(p1.x - p1.width / 2, 0, p1.x + p1.width / 2, 0);
-        grad.addColorStop(0, '#2d4c1e');
-        grad.addColorStop(0.5, '#4a7c2c');
+        grad.addColorStop(0,'#0f1e0aff');
+        grad.addColorStop(0.3, '#2d4c1e');
+        grad.addColorStop(0.6, '#4a7c2c');
         grad.addColorStop(1, '#6ba343');
 
         ctx.beginPath();

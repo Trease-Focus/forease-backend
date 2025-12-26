@@ -261,18 +261,7 @@ export class PinkBallsTree implements Generate {
                 ctx.quadraticCurveTo(b.control.x, b.control.y, b.end.x, b.end.y);
                 ctx.stroke();
             }
-
-            // Pass 2: Wood Highlight
-            ctx.strokeStyle = '#6D4C41';
-            for (const b of branches) {
-                if (b.strokeWidth < 1) continue;
-                ctx.beginPath();
-                ctx.lineWidth = b.strokeWidth * 0.5;
-                const off = -1;
-                ctx.moveTo(b.start.x + off, b.start.y + off);
-                ctx.quadraticCurveTo(b.control.x + off, b.control.y + off, b.end.x + off, b.end.y + off);
-                ctx.stroke();
-            }
+            
 
             // DRAW LEAVES & FRUITS
             for (const e of entities) {
@@ -427,21 +416,14 @@ function generateFullTree(
 
             if (isFruit) {
                 fruitCount.count++;
-                const fruitPalette = [
-                    { r: 255, g: 182, b: 193 }, // Light Pink
-                    { r: 255, g: 209, b: 220 }, // Lighter Pink
-                    { r: 255, g: 240, b: 245 }, // Almost White
-                ];
-                const color = fruitPalette[rand.nextInt(0, fruitPalette.length)]!;
-
                 // Fruits grow LAST: add a large offset to their distFromRoot so they appear at the very end
                 const fruitDelay = 100; // They'll start growing 500 units after their branch
 
                 entities.push({
                     center: new Vector2(eX, eY),
                     radius: 50,
-                    baseColor: { r: color.r, g: color.g, b: color.b, a: 1.0 },
-                    highlightColor: { r: Math.min(255, color.r + 20), g: Math.min(255, color.g + 20), b: Math.min(255, color.b + 20), a: 1.0 },
+                    baseColor: { r: 255, g: 192, b: 203, a: 1.0 }, 
+                    highlightColor: {r: 255, g: 223, b: 225, a: 1.0 },
                     type: 'fruit',
                     distFromRoot: entityDist + fruitDelay,
                     attachmentPoint: attachmentPoint
@@ -450,7 +432,7 @@ function generateFullTree(
                 // Cherry blossom colors
                 const pinks = [
                     { r: 255, g: 182, b: 193 }, // Base Pink
-                    { r: 255, g: 209, b: 220 }, // Lighter Pink
+                    { r: 255, g: 209, b: 230 }, // Lighter Pink
                 ];
                 const blossomColor = pinks[rand.nextInt(0, pinks.length)]!;
                 const rBase = blossomColor.r;
