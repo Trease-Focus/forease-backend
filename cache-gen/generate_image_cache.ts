@@ -6,7 +6,7 @@ import type { Config } from '../src/types/config';
 import { generateGrid, type TreeConfig } from '../src/grid';
 
 const SEED = '6969696969696969';
-const OUTPUT_DIR = path.join(__dirname, '..', 'samples', 'single_grid');
+const OUTPUT_DIR = path.join(__dirname, '..', 'cache', 'images');
 
 /**
  * SingleGridGenerator - Generates a single grid structure for each entity
